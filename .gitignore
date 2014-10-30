@@ -60,3 +60,6 @@ build/*
 *.toc
 *.vrb
 *.so
+
+# ipynb
+*.ipynb_checkpoints/
