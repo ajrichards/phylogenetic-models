@@ -1,0 +1,65 @@
+## download variational em software from
+http://www.cs.princeton.edu/~blei/lda-c/
+
+
+Xuan-Hieu Phan and Cam-Tu Nguyen. GibbsLDA++: A C/C++ implementation of latent Dirichlet allocation (LDA), 2007
+
+Share Question
+TwitterFacebookGoogle+
+Related Topics
+Technology
+Electronics
+Computers
+Computer Science
+Natural Language Processing
+Natural Language Processing: What is the fastest and easiest to use implementation for LDA (training and inference) on a very large corpus?
+what is the programming language? based on sampling or variational bayes? Should run on a single processor not a cluster. Corpus size is 200K documents, 5M vocabulary, 800M tokens. Expected running times would be nice to know.
+6 Answers
+Ask to Answer
+Quora UserQuora User, LDA and enhanced models, their... (more)
+23 upvotes by Jordan Frank, DV Subramanyam Dronamraju, Jonathan Berant, (more)
+I haven't done thorough benchmark on different implementations. Here are a few good and fast alternatives to check out in addition to what Jordan Frank has suggested.
+
+(PS. Estimate on run time has a lot to do with the number of topics and iterations to run. So you may want to specify that as well in your question.)
+
+1. PLDA
+Website: http://code.google.com/p/plda/
+
+From their website: a parallel C++ implementation of fast Gibbs sampling of Latent Dirichlet Allocation.
+
+2. Stanford Topic Modeling Toolbox
+Website: http://www-nlp.stanford.edu/soft...
+
+It's implemented in Scala (runs on JVM) and very easy to customize (good integration with other NLP tools to pre- and post-process documents -- such as removing frequent or infrequent tokens). Also, it has implemented other complex LDA enhancement models as well.
+
+It provides both Gibbs sampling and  variational Bayes approximation. The latter option converges much faster, but consumes more memory. It's running multi-threaded at least for the latter option.
+
+It's easy to use and has much more detailed tutorial compared to other similar tools. I haven't seen much adoption of this toolbox out of academia though.
+
+3. MALLET from U. Mass.
+Website: http://mallet.cs.umass.edu/
+
+Implemented in Java. Based on Gibbs sampling. It claims to be fast and scalable . You can declare number of threads to run. Documentation is not as detailed as Stanford TMT. It's easy to get started.
+
+4. GibbsLDA++
+Website: http://gibbslda.sourceforge.net/
+
+Coded in C++ and has a Java version from the same authors. It's based on Gibbs sampling. It seems to be single-threaded. This project doesn't seem to be actively maintained any more. The authors claim to have run it on large datasets such as Wikipedia (refer to the Case Study section on their website).
+
+Hadoop oriented alternatives
+These are heavily Hadoop-oriented solutions. So I don't know if they fit your requirement well. They're provided for your reference though:
+
+Mr. LDA from U. Maryland:
+Website: https://github.com/lintool/Mr.LDA
+Coded in Java. Based on variational Bayes learning. It's newly released and has been just presented in the 2012 WWW conference.
+
+Yahoo! LDA:
+Website: https://github.com/shravanmn/Yah...
+Coded in C++. It has detailed documentation.
+
+6. Other alternatives such as Mahout, etc. I haven't tested them before.
+Website: https://cwiki.apache.org/MAHOUT/...
+
+
+GPU Acceletatino
+http://bid2.berkeley.edu/bid-data-project/

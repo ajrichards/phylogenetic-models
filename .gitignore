@@ -63,3 +63,5 @@ build/*
 
 # ipynb
 *.ipynb_checkpoints/
+
+*.idx
