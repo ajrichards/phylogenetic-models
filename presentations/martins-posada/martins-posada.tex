@@ -134,16 +134,42 @@ Essentially, the paper is presentation of the software \highlt{guenomu} that is 
 \frame{
 \frametitle{Bayesian Hierarchical Model}
 \small
-A \highlt{Phylogenetic likelihood} is
+The joint distribution
 \begin{equation}
- P(D|G,\theta)
+ P(D,\theta|G) = P(D|(\theta|G)) \times P(\theta|G)
 \end{equation}
+The posterior distribution of a species tree $S$ is given by
+\begin{align}
+ P(S,\bm{\Theta}|\mathbf{D}) &\propto& P(\mathbf{D},\bm{\theta}|\mathbf{G}) P(\mathbf{G}|\bm{\lambda},S) P(\bm{\lambda}|\bm{\lambda}_{0}) P(\bm{\lambda}_{0}) P(S)\\
+                             &\propto&  P(\bm{\lambda}_{0}) P(S) \prod_{i=1}^{N} P(D_{i},\bm{\theta}_{i}|G_{i}) P(G_{i}|\lambda_{i},S) P(\lambda_{i}|\lambda_{0})
+\end{align}
 
+where $\Theta = (\bm{\theta},\mathbf{G},\bm{\lambda},\bm{\lambda}_{0})$.  $\bm{\lambda} = \lambda_{ij}$ is a matrix with penalty parameters $j$ for gene family $i$.  These penalty parameters are distributed according to $\bm{\lambda_{0}}$.  They assume $P(G_{i}|S)$ follows an exponential distribution s.t. $d(G_{i},S)$ can be written based on this distribution along with penalty parameter $\lambda_{i}$ (see text).
+\normalsize
+}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\frame{
+\frametitle{Priors for distance penalties}
+\small
+An exponential prior??
+\begin{equation}
+ P(\lambda_{ij}|\bm{\lambda}_{0}) = \frac{e^{\lambda_{ij}/\lambda_{0i}}}{\lambda_{0j}}
+\end{equation}
+\normalsize
+\cite{Steel08}
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\frame{
+\frametitle{Distances}
+\small
 \begin{itemize}
- \item something
- \item something
- \item something  
+ \item \highlt{Reconciliation distances} - based on the most parsimonious reconciliations between rooted species tree and gene trees (can be used to find the minimum number of DL or deep coalescences in order to make speces and gene tree match) 
+ \item \highlt{Nonparametric distances} - any estimate of disagreement i.e. Robinson-Foulds (RF) -- they do not model the outcome only the disagreement. 
 \end{itemize}
+The \textit{mulRF} distance allows for one of the two trees in the distance calculation to have several leaves with the same label.
 \normalsize
 }
 
@@ -154,13 +180,13 @@ A \highlt{Phylogenetic likelihood} is
 
 \frame{
 \small
-\begin{block}{blah}
-blah
+\begin{block}{MCMC}
+It is difficult to sample directly from posterior so a variant of MCMC was used...
 \end{block}
 \begin{itemize}
- \item something
- \item something
- \item something  
+ \item Generalized Multiple-try Metropolis (GMTM)
+ \item The denominator of the multivariate exponential is so messy they had to ignore it
+ \item Simulated annealing -- instead of sampling directly from $P(S,\bm{\Theta}|\mathbf{D})$ they estimate $S$ and $\Theta$
 \end{itemize}
 \normalsize
 }
@@ -187,13 +213,11 @@ blah
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \frame{
 \small
-\begin{block}{blah}
-blah
-\end{block}
+\frametitle{Notation}
 \begin{itemize}
- \item something
- \item something
- \item something  
+ \item DLI - a parameterization of the model that only considers reconciliation distances (min num. DL and ILS)
+ \item DLIR - same except it also considers \textit{mulRF}
+ \item iGTP - a competing software
 \end{itemize}
 \normalsize
 }
@@ -244,7 +268,6 @@ blah
 \begin{itemize}
  \item Usually different sources of gene tree disagreement are considered separately (e.g. DL,ILS), however unrecognized processes adversely affect gene tree estimation \cite{Rasmussen12}  
  \item guenomu does well, GTP methods do well, but coalescence methods perform poorly under the scenarios considered
- \item something  
 \end{itemize}
 \normalsize
 }
