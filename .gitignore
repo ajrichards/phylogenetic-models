@@ -65,3 +65,10 @@ build/*
 *.ipynb_checkpoints/
 
 *.idx
+
+
+## yn-lda
+yn-lda/raw-data/*
+yn-lda/vieira-high/*
+yn-lda/vieira-low/*
+data/*
