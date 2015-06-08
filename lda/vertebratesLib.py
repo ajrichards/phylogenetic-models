@@ -16,10 +16,10 @@ NOTES:
 """
 
 import csv, os,re,sys,shutil
+import numpy as np
 from ete2 import Tree
 
 ## variables
-
 aa2codon = {'C': ['TGT','TGC'],\
             'D': ['GAT','GAC'],\
             'S': ['TCT', 'TCG', 'TCA', 'TCC', 'AGC', 'AGT'],\
@@ -45,7 +45,14 @@ aa2codon = {'C': ['TGT','TGC'],\
 aas = aa2codon.keys()
 aas.sort()
 
-
+## transition vocab
+base = ["A","C","D","E","F","G","H","I","K","L","M","N","P","Q","R","S","T","V","W","Y"]
+transitions = []
+for t1 in base:
+    for t2 in base:
+        transitions.append("%s%s"%(t1,t2))
+transitions.sort()
+transitions = np.array(transitions)
 
 ## check that the files are extracted
 dataDir = os.path.join("..","data","herve-vertebrates")
@@ -82,34 +89,125 @@ def get_trees(split,position):
         treeList.append(linja[0]+";")
     return treeList
 
-def get_transitions(parent,children):
+def transitions_to_counts(transitionList):
     """
-    given a parent node get the transitions to children
-    parent - (str) can be a valid amino acid (upper-case) or a 'somename_AA'
-    children - (list) if 'somename_AA' then AA is extracted other wise assumed the same as parent
+    given a list of transition pairs translate it into a row in the transition count matrix
     """
     
-    def extract(name):
-        if re.search("\_[ACDEFGHIKLMNPQRSTVWY]$",name):
-            return re.findall("\_[ACDEFGHIKLMNPQRSTVWY]$",name)[0][-1]
+    if type(transitionList) == type([]):
+        transitionList = np.array(transitionList)
+
+    uniqueList = np.unique(transitionList)
+    counts = np.zeros(transitions.size,)
+    for ut in uniqueList:
+        indx = np.where(transitions==ut)[0]
+        count = np.where(transitionList == ut)[0].size
+
+        if indx.size == 0:
+            raise Exception("Invalid value in transitionList '%s'"%(ut))
+        indx = np.where(transitions==ut)[0]
+        counts[indx] = count
+
+    return counts
+
+
+def write_tree_to_file(outFileName,treeSummary):
+    ## write a treeSummary to file
+    outfid = open(outFileName, 'wb')
+    writer = csv.writer(outfid)
+    writer.writerow(["parent","child","aa","dist","transitions","pairs"])
+    for node in t.traverse("levelorder"):
+        key = node.name     
+        if key == 'N1':
+            continue
+        item = ts[key]
+        writer.writerow([item['parent'],key,item['aa'],item['dist'],";".join(item['transitions']),";".join(item['pairs'])])
+    outfid.close()   
+
+def fix_tree(nwTree):
+    t = Tree(nwTree,format=0)
+    rootNode = "Acipenser__R"
+    #t.set_outgroup(rootNode)
+    
+    ## iterate through tree an give each node an identifier
+    internalNodes = {}
+    level = 0
+    iNodeName = 'N'+str(level)
+
+    ## give the nodes names
+    for node in t.traverse("levelorder"): #levelorder | postorder
+        if node.name == rootNode:
+            continue
+        if node.name == 'NoName':
+            level += 1
+            iNodeName = 'N'+str(level)
+            node.name = iNodeName
+
+        if not internalNodes.has_key(iNodeName):
+            internalNodes[iNodeName] = []
+        internalNodes[iNodeName].append(node.name)
+
+    pattern1 = "[\w|:]+.+?[,|\)|\(]"
+    prog1 = re.compile(pattern1)
+    result = prog1.findall(nwTree)
+
+    pattern2 =  "\d\.\d+:[A-Z]"
+    prog2 = re.compile(pattern2)
+    
+    pattern3 =  "\_[A-Z]"
+    prog3 = re.compile(pattern3)
+
+    ## traverse the tree to fix distances and extract information
+    n =0
+    treeSummary = {}
+    for node in t.traverse("postorder"):
+
+        if node.name == 'N1':
+            continue
+    
+        res = re.sub("[\(|\)|,]","",result[n])
+        res = re.sub(node.name+":","",res)
+        transitions = prog2.findall(res)
+
+        ## leaf node
+        if prog3.search(node.name):
+            current = prog3.findall(node.name)[0][-1]
+        ## internal node
         else:
-            return
+            current = prog3.findall(res)[0][-1]
+            node._set_dist(float(transitions[0].split(":")[0]))
+        
+        treeSummary[node.name] = {'aa':current,\
+                                  'dist':node.dist,\
+                                  'transitions':transitions}
+        n += 1
 
-    if parent not in aas:
-        paa = extract(parent)
-        if not paa:
-            raise Exception("invalid parent passed")
-    else:
-        paa = parent
+    ## again traverse this time identifing transition pairs
+    transitionPairs = {}
+    debug = 0
+    for node in t.traverse("postorder"):
+        if node.name == 'N1':
+            continue
+        parent = [n.name for n in node.get_ancestors()][0]
+        treeSummary[node.name]['parent'] = parent
 
-    caas = []
-    for child in children:
-        echild = extract(child)
-        if child in aas:
-            caas.append(child)
-        elif echild:
-            caas.append(echild)
+        if parent == 'N1':
+            parentAA = treeSummary[node.name]['aa']
         else:
-            caas.append(paa)
+            parentTransitions = treeSummary[parent]['transitions']
+            parentAA = parentTransitions[0].split(":")[-1]
+        
+        childTransitions = treeSummary[node.name]['transitions']
+        childAAs = [child.split(":")[-1] for child in childTransitions]
+        childAAs.reverse()
 
-    return [paa + caa for caa in caas]
+        transitionPairs = []
+        p = parentAA
+        for c in childAAs:
+            transitionPairs.append(p+c)
+            p = c
+
+        treeSummary[node.name]['pairs'] = transitionPairs
+        debug += 1
+        
+    return t,treeSummary
