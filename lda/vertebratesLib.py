@@ -47,19 +47,19 @@ aas.sort()
 
 ## transition vocab
 base = ["A","C","D","E","F","G","H","I","K","L","M","N","P","Q","R","S","T","V","W","Y"]
-transitions = []
+TRANSITIONS = []
 for t1 in base:
     for t2 in base:
-        transitions.append("%s%s"%(t1,t2))
-transitions.sort()
-transitions = np.array(transitions)
+        TRANSITIONS.append("%s%s"%(t1,t2))
+TRANSITIONS.sort()
+transitions = np.array(TRANSITIONS)
 
 ## check that the files are extracted
-dataDir = os.path.join("..","data","herve-vertebrates")
+#dataDir = os.path.join("..","data","herve-vertebrates")
 splits = ["SPLIT%s"%i for i in range(1,11)] 
 
 ## convenience functions
-def get_tree_file_path(split,position):
+def get_tree_file_path(split,position,dataDir):
     """
     return the map file path for a split and a position
     """
@@ -74,12 +74,12 @@ def get_tree_file_path(split,position):
         raise Exception("cannot find '%s'"%(filePath))
     return filePath
 
-def get_trees(split,position):
+def get_trees(split,position,dataDir):
     """
     return the trees as a list for a given split and position
     """
 
-    filePath = get_tree_file_path(split,position)
+    filePath = get_tree_file_path(split,position,dataDir)
     fid = open(filePath,'r')
     reader = csv.reader(fid,delimiter=';')
     treeList = []
@@ -110,7 +110,21 @@ def transitions_to_counts(transitionList):
 
     return counts
 
-
+def standardize_tree(nwTree):
+    pattern1 = "[\w|:]+.+?[,|\)|\(]"
+    parsedTree = nwTree
+    
+    for r in re.finditer(pattern1,nwTree):
+        matched = nwTree[r.start(0):r.end(0)]
+        parsed = re.sub(":[A-Z]","",matched)
+        multiples = re.findall(":\d\.\d+",parsed)
+        if len(multiples) > 1:
+            for extra in multiples[1:]:
+                parsed = re.sub(extra,"",parsed)
+        parsedTree = parsedTree.replace(matched,parsed)
+        
+    return re.sub("\)_[A-Z]:",")",parsedTree)[:-3]+";"
+                            
 def write_tree_to_file(outFileName,treeSummary):
     ## write a treeSummary to file
     outfid = open(outFileName, 'wb')
@@ -124,11 +138,15 @@ def write_tree_to_file(outFileName,treeSummary):
         writer.writerow([item['parent'],key,item['aa'],item['dist'],";".join(item['transitions']),";".join(item['pairs'])])
     outfid.close()   
 
-def fix_tree(nwTree):
+def fix_tree(pbTree):
+    """
+    takes a phylobayes formatted tree
+    """
+    nwTree = standardize_tree(pbTree)
     t = Tree(nwTree,format=0)
     rootNode = "Acipenser__R"
     #t.set_outgroup(rootNode)
-    
+
     ## iterate through tree an give each node an identifier
     internalNodes = {}
     level = 0
@@ -138,7 +156,7 @@ def fix_tree(nwTree):
     for node in t.traverse("levelorder"): #levelorder | postorder
         if node.name == rootNode:
             continue
-        if node.name == 'NoName':
+        if node.name == '':
             level += 1
             iNodeName = 'N'+str(level)
             node.name = iNodeName
@@ -149,32 +167,30 @@ def fix_tree(nwTree):
 
     pattern1 = "[\w|:]+.+?[,|\)|\(]"
     prog1 = re.compile(pattern1)
-    result = prog1.findall(nwTree)
+    result = prog1.findall(pbTree)
 
-    pattern2 =  "\d\.\d+:[A-Z]"
+    pattern2 =  "\_[A-Z]"
     prog2 = re.compile(pattern2)
-    
-    pattern3 =  "\_[A-Z]"
-    prog3 = re.compile(pattern3)
 
     ## traverse the tree to fix distances and extract information
     n =0
     treeSummary = {}
     for node in t.traverse("postorder"):
-
+        
         if node.name == 'N1':
             continue
-    
-        res = re.sub("[\(|\)|,]","",result[n])
-        res = re.sub(node.name+":","",res)
-        transitions = prog2.findall(res)
 
-        ## leaf node
-        if prog3.search(node.name):
-            current = prog3.findall(node.name)[0][-1]
+        res = re.sub("[\(|\)|,]","",result[n])
+        transitions = re.findall(":\d\.\d+\:[A-Z]",res)
+        transitions = [tr[1:] for tr in transitions]
+        current = transitions[0][-1]
+        
+        ## leaf node (sainity check)
+        if prog2.search(node.name):
+            if not re.search(node.name,res):
+                raise Exception("did not pass sanity check")
         ## internal node
         else:
-            current = prog3.findall(res)[0][-1]
             node._set_dist(float(transitions[0].split(":")[0]))
         
         treeSummary[node.name] = {'aa':current,\
