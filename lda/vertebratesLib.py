@@ -8,6 +8,10 @@ we first move individual files into corresponding splits
 
 extract the tar file into 'dataDir' and run this script
 
+there are basically 30,000 positions in each split
+for a total of 30000 * X splits
+
+
 NOTES: 
 
     (1) in this example the tree is contstrained
@@ -17,6 +21,7 @@ NOTES:
 
 import csv, os,re,sys,shutil
 import numpy as np
+import matplotlib.pyplot as plt
 from ete2 import Tree
 
 ## variables
@@ -52,22 +57,38 @@ for t1 in base:
     for t2 in base:
         TRANSITIONS.append("%s%s"%(t1,t2))
 TRANSITIONS.sort()
-transitions = np.array(TRANSITIONS)
+TRANSITIONS = np.array(TRANSITIONS)
 
 ## check that the files are extracted
 #dataDir = os.path.join("..","data","herve-vertebrates")
 splits = ["SPLIT%s"%i for i in range(1,11)] 
 
 ## convenience functions
+def get_positions(split,dataDir):
+    positions = []
+    debug = 0
+    pattern = "_\d+\."
+    prog = re.compile(pattern)
+    
+    
+    for fileName in os.listdir(os.path.join(dataDir,split)):
+        position = prog.findall(fileName)[0][1:-1]
+        positions.append(position)
+        
+    return np.sort(np.array(positions))
+
 def get_tree_file_path(split,position,dataDir):
     """
     return the map file path for a split and a position
     """
 
-    if int(position) < 0 or int(position) > 29999:
-        raise Exception("invalid numId arg %s"%position)
+    ## error checking
     if split not in splits:
-        raise Exception("invalid split arg %s"%split)
+        raise Exception("invalid split arg %s"%split)    
+    positions = get_positions(split,dataDir)
+    
+    if position not in positions:
+        raise Exception("invalid position arg %s"%position)
 
     filePath = os.path.join(dataDir,split,"Amphibia-noo-100x1285039-%s-CATG_%s.map"%(split,position))
     if not os.path.exists(filePath):
@@ -98,14 +119,14 @@ def transitions_to_counts(transitionList):
         transitionList = np.array(transitionList)
 
     uniqueList = np.unique(transitionList)
-    counts = np.zeros(transitions.size,)
+    counts = np.zeros(TRANSITIONS.size,)
     for ut in uniqueList:
-        indx = np.where(transitions==ut)[0]
+        indx = np.where(TRANSITIONS==ut)[0]
         count = np.where(transitionList == ut)[0].size
 
         if indx.size == 0:
             raise Exception("Invalid value in transitionList '%s'"%(ut))
-        indx = np.where(transitions==ut)[0]
+        indx = np.where(TRANSITIONS==ut)[0]
         counts[indx] = count
 
     return counts
@@ -117,12 +138,13 @@ def standardize_tree(nwTree):
     for r in re.finditer(pattern1,nwTree):
         matched = nwTree[r.start(0):r.end(0)]
         parsed = re.sub(":[A-Z]","",matched)
-        multiples = re.findall(":\d\.\d+",parsed)
-        if len(multiples) > 1:
-            for extra in multiples[1:]:
-                parsed = re.sub(extra,"",parsed)
-        parsedTree = parsedTree.replace(matched,parsed)
+        multiples = re.findall(":\d\.[\de-]+",parsed)
+        trans = "".join(multiples)
         
+        if len(multiples) > 1:
+            parsed = parsed.replace(trans,multiples[0])
+        parsedTree = parsedTree.replace(matched,parsed)
+
     return re.sub("\)_[A-Z]:",")",parsedTree)[:-3]+";"
                             
 def write_tree_to_file(outFileName,treeSummary):
@@ -137,6 +159,7 @@ def write_tree_to_file(outFileName,treeSummary):
         item = ts[key]
         writer.writerow([item['parent'],key,item['aa'],item['dist'],";".join(item['transitions']),";".join(item['pairs'])])
     outfid.close()   
+
 
 def fix_tree(pbTree):
     """
@@ -176,7 +199,7 @@ def fix_tree(pbTree):
     n =0
     treeSummary = {}
     for node in t.traverse("postorder"):
-        
+        actualNode = re.sub("_+[A-Z]$","",node.name)
         if node.name == 'N1':
             continue
 
@@ -193,27 +216,28 @@ def fix_tree(pbTree):
         else:
             node._set_dist(float(transitions[0].split(":")[0]))
         
-        treeSummary[node.name] = {'aa':current,\
-                                  'dist':node.dist,\
-                                  'transitions':transitions}
+        treeSummary[actualNode] = {'aa':current,\
+                                   'dist':node.dist,\
+                                   'transitions':transitions}
         n += 1
 
     ## again traverse this time identifing transition pairs
     transitionPairs = {}
     debug = 0
     for node in t.traverse("postorder"):
+        actualNode = re.sub("_+[A-Z]$","",node.name)
         if node.name == 'N1':
             continue
         parent = [n.name for n in node.get_ancestors()][0]
-        treeSummary[node.name]['parent'] = parent
+        treeSummary[actualNode]['parent'] = parent
 
         if parent == 'N1':
-            parentAA = treeSummary[node.name]['aa']
+            parentAA = treeSummary[actualNode]['aa']
         else:
             parentTransitions = treeSummary[parent]['transitions']
             parentAA = parentTransitions[0].split(":")[-1]
         
-        childTransitions = treeSummary[node.name]['transitions']
+        childTransitions = treeSummary[actualNode]['transitions']
         childAAs = [child.split(":")[-1] for child in childTransitions]
         childAAs.reverse()
 
@@ -223,7 +247,77 @@ def fix_tree(pbTree):
             transitionPairs.append(p+c)
             p = c
 
-        treeSummary[node.name]['pairs'] = transitionPairs
+        treeSummary[actualNode]['pairs'] = transitionPairs
         debug += 1
         
     return t,treeSummary
+
+def get_species_transitions(treeSummary,leaf):
+    """
+    get all species transitions for a givn leaf
+    """
+
+    actualLeaf = re.sub("_+[A-Z]$","",leaf.name)
+    leafPairs = treeSummary[actualLeaf]['pairs']
+    for ancestor in leaf.iter_ancestors():
+        if ancestor.name == "N1":
+            continue
+        leafPairs.extend(treeSummary[ancestor.name]['pairs'])
+
+    return leafPairs
+                         
+def profile_heatmap_plot(countMatrix,figName,figTitle=None,cmap=plt.cm.bone,rowIds=None,fontSize=(7,7)):
+    """
+    create a transition profile plot
+    """
+
+    fig = plt.figure(figsize=(9,4))
+    ax = fig.add_subplot(1,1,1)
+    nonZeroInds = np.where(countMatrix.sum(axis=0) != 0)[0]
+    hmap = ax.imshow(countMatrix[:,nonZeroInds], interpolation='nearest',aspect='auto',cmap=cmap)
+    if figTitle:
+        _ = ax.set_title(figTitle)
+    _ = ax.set_xticks(range(nonZeroInds.size))
+    _ = ax.set_yticks(range(countMatrix.shape[0]))
+    _ = ax.set_xticklabels(TRANSITIONS[nonZeroInds],fontsize=fontSize[0])
+
+    if rowIds:
+        ax.set_yticklabels(rowIds,fontsize=fontSize[1])
+    else:
+        ax.set_yticklabels(["%s"%(i) for i in range(countMatrix.shape[0])],fontsize=fontSize[1])
+
+    xlabs = ax.get_xticklabels()
+    plt.setp(xlabs, rotation=90)
+    cbar = fig.colorbar(hmap,orientation='vertical')
+
+    plt.savefig(figName,dpi=500)
+    
+def profile_box_plot(countMatrix,figName,figTitle=None,fontSize=(7,7)):
+    """
+    create a transition profile plot
+    """
+
+    fig = plt.figure(figsize=(9,4))
+    ax = fig.add_subplot(1,1,1)
+    nonZeroInds = np.where(countMatrix.sum(axis=0) != 0)[0]
+
+    bp = ax.boxplot(countMatrix[:,nonZeroInds], notch=0, sym='+', vert=1, whis=1.5)
+    plt.setp(bp['boxes'], color='black')
+    plt.setp(bp['whiskers'], color='black')
+    plt.setp(bp['fliers'], color='red', marker='+')
+
+    if figTitle:
+        _ = ax.set_title(figTitle)
+    _ = ax.set_xticks(range(1,nonZeroInds.size+1))
+    _ = ax.set_xticklabels(TRANSITIONS[nonZeroInds],fontsize=fontSize[0])
+
+    buff = 0.05
+    yrange = countMatrix.max() - countMatrix.min()
+    _ = ax.set_ylim(0.0 - (0.05*yrange), countMatrix.max() + (0.05 * yrange))
+    
+    xlabs = ax.get_xticklabels()
+    plt.setp(xlabs, rotation=90,fontsize=fontSize[0])
+    ylabs = ax.get_yticklabels()
+    plt.setp(ylabs,fontsize=fontSize[1])
+
+    plt.savefig(figName,dpi=500)
