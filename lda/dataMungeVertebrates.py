@@ -60,37 +60,6 @@ def get_counts(args):
         speciesCounts[actualLeaf] = np.array([int(round(i)) for i in speciesMatrix[actualLeaf].mean(axis=0)])
     return speciesCounts,treeCounts
 
-"""
-def save_to_matrix():
-    
-    ## setup multiprocessing
-    po = Pool(processes=cpu_count()-1)
-
-    ## fill get the counts data and save it in summary variables
-    print("running via multiprocessing...")
-    summaryTree = np.zeros((positions.size,TRANSITIONS.size),)
-    summarySpecies = {}
-    for leaf in leaves:
-        actualLeaf = re.sub("_+[A-Z]$","",leaf.name)
-        summarySpecies[actualLeaf] = np.zeros((positions.size,TRANSITIONS.size),)
-
-    _results = po.map_async(get_counts,((p,position) for p,position in enumerate(positions)))
-    results =  _results.get()
-
-    print("filling in matrices...")
-    for p, position in enumerate(positions):
-        speciesCounts,treeCounts = results[p]
-        summaryTree[p,:] = treeCounts
-        for key,item in speciesCounts.iteritems():
-            summarySpecies[key][p,:] = item
-    
-    print("...saving")
-    args = summarySpecies
-    args['tree'] = summaryTree
-    np.savez_compressed(outputFile1,**args)
-    print("done.")
-"""
-
 if __name__ == "__main__":
     ## read in input file
     if len(sys.argv) < 3:

@@ -321,3 +321,16 @@ def profile_box_plot(countMatrix,figName,figTitle=None,fontSize=(7,7)):
     plt.setp(ylabs,fontsize=fontSize[1])
 
     plt.savefig(figName,dpi=500)
+
+def get_split_data(split,dataDir=os.path.join("..","data","hv-compressed")):
+    outputFile1 = os.path.join(dataDir,"%s.npz"%(split))
+    npz = np.load(outputFile1)
+    outputFile2 = os.path.join(dataDir,"%s-rows.npz"%(split))
+    splitPositions = np.load(outputFile2)['rows']
+    summaryTree = npz['tree']
+    summarySpecies = {}
+    for key,item in npz.iteritems():
+        if key == 'tree':
+            continue
+        summarySpecies[key] = item
+    return summaryTree,summarySpecies,splitPositions

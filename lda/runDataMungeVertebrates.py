@@ -83,15 +83,18 @@ def create_empty_matrix(split):
 
 ## run via subprocessing -- use tail -f file.log
 timeStart = time.time()
-#split = "SPLIT2"
-for split in ["SPLIT%s"%i for i in range(3,11)]: 
-    create_empty_matrix(split)
-    logFile = open("%s.log"%split,'w')
-    blocks = ((0,5000),(5000,10000),(10000,15000),(15000,20000),(20000,25000),(25000,30000))
-    for first,last in blocks:
-        cmd = "python dataMungeVertebrates.py -s %s -f %s -l %s -d %s"%(split,first,last,dataDir)
-        print 'running...\n%s'%cmd
-        proc = subprocess.Popen(cmd,shell=True,stdout=logFile,stdin=subprocess.PIPE)
-        proc.communicate()
+for split in ["SPLIT%s"%i for i in range(1,11)]: 
+    ## save the split identifiers
+    splitPositions = get_positions(split,dataDir)
+    np.savez(os.path.join(outputDir,"%s-rows.npz"%(split)),rows=splitPositions)
+    
+    #create_empty_matrix(split)
+    #logFile = open("%s.log"%split,'w')
+    #blocks = ((0,5000),(5000,10000),(10000,15000),(15000,20000),(20000,25000),(25000,30000))
+    #for first,last in blocks:
+    #    cmd = "python dataMungeVertebrates.py -s %s -f %s -l %s -d %s"%(split,first,last,dataDir)
+    #    print 'running...\n%s'%cmd
+    #    proc = subprocess.Popen(cmd,shell=True,stdout=logFile,stdin=subprocess.PIPE)
+    #    proc.communicate()
 
 print("end: %s"%time.strftime('%H:%M:%S',time.gmtime(time.time()-timeStart)))
