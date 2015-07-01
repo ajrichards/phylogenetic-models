@@ -45,31 +45,27 @@ args['matrix'] = mat
 args['rows'] = branches
 args['columns'] = TRANSITIONS
 np.savez_compressed(outputFile,**args)
-logFile = open("branches.log",'w')
 
 for split in SPLITS:
     print split
 
     positions = get_positions(split,dataDir)
-    chunks = 5
+    chunks = 2
     n = len(positions)
     chunkSize = int(round(float(n)/float(chunks)))
     startPoints = np.arange(0,n,chunkSize)
     blocks = [(sp,sp+chunkSize) for sp in startPoints]
 
     for first,last in blocks:  
-        logFile = open("branches.log",'a')
         print("...running via multiprocessing")
         cmd = "python pbParser.py -s %s -f %s -l %s -d %s"%(split,first,last,dataDir)
         print '...%s'%cmd
-        #proc = subprocess.Popen(cmd,shell=True,stdout=logFile,stdin=subprocess.PIPE)
         p = subprocess.Popen(cmd,shell=True,stdout=subprocess.PIPE, bufsize=1)
         with p.stdout:
             for line in iter(p.stdout.readline, b''):
                 print line,
-        p.wait() # wait for the subprocess to exit
-        #proc.communicate()
-        #logFile.close()
+        p.wait() 
+
 
 print 'saving as a csv...'
 npz = np.load(outputFile)
