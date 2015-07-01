@@ -22,7 +22,8 @@ NOTES:
 import csv, os,re,sys,shutil
 import numpy as np
 import matplotlib.pyplot as plt
-from ete2 import Tree
+from ete2 import Tree,TreeStyle
+from ete2 import faces, AttrFace
 
 ## variables
 aa2codon = {'C': ['TGT','TGC'],\
@@ -61,7 +62,28 @@ TRANSITIONS = np.array(TRANSITIONS)
 
 ## check that the files are extracted
 #dataDir = os.path.join("..","data","herve-vertebrates")
-splits = ["SPLIT%s"%i for i in range(1,11)] 
+SPLITS = ["SPLIT%s"%i for i in range(1,11)] 
+
+## move the files into subdirectories accoriding to split
+def ensure_files_properly_located(dataDir):
+    for _split in SPLITS:
+        splitPath = os.path.join(dataDir,_split)
+        if not os.path.isdir(splitPath):
+            os.mkdir(splitPath)
+    fileCount = 0
+    for fileName in os.listdir(dataDir):
+        filePath = os.path.join(dataDir,fileName)
+        if not re.search("\.map$",fileName):
+            continue
+
+        _split = re.findall("SPLIT\d+",fileName)[0]
+        splitPath = os.path.join(dataDir,_split)
+        newFilePath = os.path.join(splitPath,fileName)
+        shutil.move(filePath,newFilePath)
+        fileCount += 1
+
+    if fileCount != 0:
+        print('Moved %s files...'%fileCount)
 
 ## convenience functions
 def get_positions(split,dataDir):
@@ -83,14 +105,17 @@ def get_tree_file_path(split,position,dataDir):
     """
 
     ## error checking
-    if split not in splits:
+    if split not in SPLITS:
         raise Exception("invalid split arg %s"%split)    
     positions = get_positions(split,dataDir)
     
     if position not in positions:
         raise Exception("invalid position arg %s"%position)
 
-    filePath = os.path.join(dataDir,split,"Amphibia-noo-100x1285039-%s-CATG_%s.map"%(split,position))
+    if split == "SPLIT10":
+        filePath = os.path.join(dataDir,split,"Amphibia-noo-100x1285039-%s-CATG_%s.map"%(split,position))
+    else:
+        filePath = os.path.join(dataDir,split,"Amphibia-noo-100x1285039-%s-CATG_%s.map"%(split,position))
     if not os.path.exists(filePath):
         raise Exception("cannot find '%s'"%(filePath))
     return filePath
@@ -204,6 +229,11 @@ def fix_tree(pbTree):
             continue
 
         res = re.sub("[\(|\)|,]","",result[n])
+        ## convert scientific notation
+        if re.search("\d+\.\d+e-\d+",res):
+            for match in re.findall("\d+\.\d+e-\d+",res):
+                res = res.replace(match,"%f"%(float(match)))
+                
         transitions = re.findall(":\d\.\d+\:[A-Z]",res)
         transitions = [tr[1:] for tr in transitions]
         current = transitions[0][-1]
@@ -334,3 +364,22 @@ def get_split_data(split,dataDir=os.path.join("..","data","hv-compressed")):
             continue
         summarySpecies[key] = item
     return summaryTree,summarySpecies,splitPositions
+
+def plot_tree(fixedTree,fileName):
+
+    ## plot the tree
+    def my_layout(node):
+        if node.is_leaf():
+            name_face = AttrFace("name",fsize=25)
+            faces.add_face_to_node(name_face, node, column=0, position="branch-right")
+        else:
+            name_face = AttrFace("name", fsize=20, fgcolor="red")
+            faces.add_face_to_node(name_face, node, column=0, position="branch-right")
+
+    ts = TreeStyle()
+    ts.show_leaf_name = False
+    ts.show_branch_length = True
+    ts.show_branch_support = True
+    ts.scale =  180
+    ts.layout_fn = my_layout
+    out = fixedTree.render(fileName, units="mm",tree_style=ts,dpi=400)
