@@ -48,7 +48,6 @@ np.savez_compressed(outputFile,**args)
 
 for split in SPLITS:
     print split
-
     positions = get_positions(split,dataDir)
     chunks = 2
     n = len(positions)
@@ -58,14 +57,13 @@ for split in SPLITS:
 
     for first,last in blocks:  
         print("...running via multiprocessing")
-        cmd = "python pbParser.py -s %s -f %s -l %s -d %s"%(split,first,last,dataDir)
+        cmd = "python pbParser.py -s %s -f %s -l %s -m branches -d %s"%(split,first,last,dataDir)
         print '...%s'%cmd
         p = subprocess.Popen(cmd,shell=True,stdout=subprocess.PIPE, bufsize=1)
         with p.stdout:
             for line in iter(p.stdout.readline, b''):
                 print line,
         p.wait() 
-
 
 print 'saving as a csv...'
 npz = np.load(outputFile)
