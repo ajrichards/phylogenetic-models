@@ -1,29 +1,62 @@
 #!/usr/bin/env python
 
 import os,csv
-import lda
+import gensim
 import numpy as np
 
 from vertebratesLib import *
 
 #vocab = TRANSITIONS.tolist()
 
-
-positionMat = None
+mat = None
 
 for split in SPLITS:
     outputFile = os.path.join("..","data","hv-compressed","%s-positions.npz"%(split))
     npz = np.load(outputFile)
 
-    if positionMat == None:
-        positionMat = npz['tree'].astype(int)
+    if mat == None:
+        mat = npz['tree'].astype(int)
     else:
-        positionMat = np.vstack((positionMat,npz['tree'].astype(int)))
-    print split, positionMat.shape
+        mat = np.vstack((mat,npz['tree'].astype(int)))
+    print split, mat.shape
 
 vocab = npz['columns']
-                            
 
+## create the documents from the matrix                                                                                                                                         
+texts = []
+usedInds = set([])
+for r in range(mat.shape[0]):
+    hitInds = np.where(mat[r,:] > 1)[0]
+    text = []
+    for hi in hitInds:
+        word = vocab[hi]
+
+        if word[0] == word[1]:
+            continue
+
+        usedInds.update([hi])
+        text.extend([vocab[hi]] * mat[r,hi])
+    texts.append(text)
+usedInds = list(usedInds)
+
+id2word = {}
+for i,indx in enumerate(usedInds):
+    id2word[i] = vocab[indx]
+
+dictionary = gensim.corpora.Dictionary(texts)
+dictionary.save('/tmp/branchs.dict')
+
+## create a corpus from the documents
+corpus = [dictionary.doc2bow(text) for text in texts]
+gensim.corpora.MmCorpus.serialize('/tmp/branches.mm', corpus)
+mm = gensim.corpora.MmCorpus('/tmp/branches.mm')
+print mm
+
+lda = gensim.models.LdaMulticore(corpus=mm, num_topics=50, id2word=id2word,chunksize=1000)
+for t,topic in enumerate(lda.print_topics(30)):
+    print("topic-%s: %s"%(t,topic))
+
+sys.exit()
 
 #outputFile = os.path.join("..","data","hv-compressed","branches.npz")
 #npz = np.load(outputFile)
